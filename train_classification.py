@@ -22,7 +22,7 @@ def train():
     # -----------------------
     train_data = load_data(
         "classification_data/train",
-        transform_pipeline="train"
+        transform_pipeline="aug"
     )
 
     val_data = load_data(
