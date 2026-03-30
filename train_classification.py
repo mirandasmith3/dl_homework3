@@ -33,7 +33,6 @@ def train():
         shuffle=False
     )
 
-
     # -----------------------
     # Model, loss, optimizer
     # -----------------------
