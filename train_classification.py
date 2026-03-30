@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 
 from homework.models import Classifier, save_model
 from homework.datasets.classification_dataset import load_data
@@ -20,18 +19,20 @@ def train():
     # -----------------------
     # Data
     # -----------------------
-    train_data = load_data(
+    train_loader = load_data(
         "classification_data/train",
-        transform_pipeline="aug"
+        transform_pipeline="aug",
+        batch_size=batch_size,
+        shuffle=True
     )
 
-    val_data = load_data(
+    val_loader = load_data(
         "classification_data/val",
-        transform_pipeline="default"
+        transform_pipeline="default",
+        batch_size=batch_size,
+        shuffle=False
     )
 
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=batch_size)
 
     # -----------------------
     # Model, loss, optimizer
