@@ -20,8 +20,15 @@ def train():
     # -----------------------
     # Data
     # -----------------------
-    train_data = load_data(split="train")
-    val_data = load_data(split="val")
+    train_data = load_data(
+        "classification_data/train",
+        transform_pipeline="train"
+    )
+
+    val_data = load_data(
+        "classification_data/val",
+        transform_pipeline="default"
+    )
 
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=batch_size)
