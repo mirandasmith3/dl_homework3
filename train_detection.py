@@ -38,7 +38,8 @@ def train():
     # -----------------------
     model = Detector().to(device)
 
-    seg_criterion = nn.CrossEntropyLoss()
+    class_weights = torch.tensor([0.5, 2.0, 2.0]).to(device)
+    seg_criterion = nn.CrossEntropyLoss(weight=class_weights)
     depth_criterion = nn.L1Loss()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

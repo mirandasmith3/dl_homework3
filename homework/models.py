@@ -97,70 +97,78 @@ class Detector(torch.nn.Module):
         self.register_buffer("input_mean", torch.as_tensor(INPUT_MEAN))
         self.register_buffer("input_std", torch.as_tensor(INPUT_STD))
 
-        # Encoder (down path)
+        # Encoder (down path) - wider channels
         self.down1 = nn.Sequential(
-            nn.Conv2d(in_channels, 16, kernel_size=3, stride=2, padding=1),  # h/2
-            nn.BatchNorm2d(16),
+            nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
         )
         self.down2 = nn.Sequential(
-            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # h/4
-            nn.BatchNorm2d(32),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-        )
-        self.down3 = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # h/8
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
         )
+        self.down3 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+        )
 
-        # Decoder (up path) - takes skip connections into account
+        # Decoder (up path)
         self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),  # h/4
-            nn.BatchNorm2d(32),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
         )
         self.up2 = nn.Sequential(
-            nn.ConvTranspose2d(32 + 32, 16, kernel_size=4, stride=2, padding=1),  # h/2
-            nn.BatchNorm2d(16),
+            nn.ConvTranspose2d(64 + 64, 32, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
         )
         self.up3 = nn.Sequential(
-            nn.ConvTranspose2d(16 + 16, 16, kernel_size=4, stride=2, padding=1),  # h
-            nn.BatchNorm2d(16),
+            nn.ConvTranspose2d(32 + 32, 32, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
         )
 
         # Output heads
-        self.seg_head = nn.Conv2d(16, num_classes, kernel_size=1)
+        self.seg_head = nn.Conv2d(32, num_classes, kernel_size=1)
         self.depth_head = nn.Sequential(
-            nn.Conv2d(16, 1, kernel_size=1),
-            nn.Sigmoid()  # constrains depth to [0, 1]
+            nn.Conv2d(32, 1, kernel_size=1),
+            nn.Sigmoid()
         )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         z = (x - self.input_mean[None, :, None, None]) / self.input_std[None, :, None, None]
 
         # Encoder
-        d1 = self.down1(z)   # (b, 16, h/2, w/2)
-        d2 = self.down2(d1)  # (b, 32, h/4, w/4)
-        d3 = self.down3(d2)  # (b, 64, h/8, w/8)
+        d1 = self.down1(z)   # (b, 32, h/2, w/2)
+        d2 = self.down2(d1)  # (b, 64, h/4, w/4)
+        d3 = self.down3(d2)  # (b, 128, h/8, w/8)
 
-        # Decoder with skip connections (U-Net style)
-        u1 = self.up1(d3)           # (b, 32, h/4, w/4)
-        u2 = self.up2(torch.cat([u1, d2], dim=1))  # (b, 16, h/2, w/2)
-        u3 = self.up3(torch.cat([u2, d1], dim=1))  # (b, 16, h, w)
+        # Decoder with skip connections
+        u1 = self.up1(d3)                        # (b, 64, h/4, w/4)
+        u2 = self.up2(torch.cat([u1, d2], dim=1))  # (b, 32, h/2, w/2)
+        u3 = self.up3(torch.cat([u2, d1], dim=1))  # (b, 32, h, w)
 
-        logits = self.seg_head(u3)            # (b, num_classes, h, w)
-        raw_depth = self.depth_head(u3).squeeze(1)  # (b, h, w)
+        logits = self.seg_head(u3)
+        raw_depth = self.depth_head(u3).squeeze(1)
 
         return logits, raw_depth
 
     def predict(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         logits, raw_depth = self(x)
         pred = logits.argmax(dim=1)
-        depth = raw_depth
-        return pred, depth
+        return pred, raw_depth
 
 
 MODEL_FACTORY = {
