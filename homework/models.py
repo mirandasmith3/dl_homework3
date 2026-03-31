@@ -92,62 +92,74 @@ class Detector(torch.nn.Module):
         in_channels: int = 3,
         num_classes: int = 3,
     ):
-        """
-        A single model that performs segmentation and depth regression
-
-        Args:
-            in_channels: int, number of input channels
-            num_classes: int
-        """
         super().__init__()
 
         self.register_buffer("input_mean", torch.as_tensor(INPUT_MEAN))
         self.register_buffer("input_std", torch.as_tensor(INPUT_STD))
 
-        # TODO: implement
-        pass
+        # Encoder (down path)
+        self.down1 = nn.Sequential(
+            nn.Conv2d(in_channels, 16, kernel_size=3, stride=2, padding=1),  # h/2
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+        )
+        self.down2 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # h/4
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+        )
+        self.down3 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # h/8
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+        )
+
+        # Decoder (up path) - takes skip connections into account
+        self.up1 = nn.Sequential(
+            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),  # h/4
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+        )
+        self.up2 = nn.Sequential(
+            nn.ConvTranspose2d(32 + 32, 16, kernel_size=4, stride=2, padding=1),  # h/2
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+        )
+        self.up3 = nn.Sequential(
+            nn.ConvTranspose2d(16 + 16, 16, kernel_size=4, stride=2, padding=1),  # h
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+        )
+
+        # Output heads
+        self.seg_head = nn.Conv2d(16, num_classes, kernel_size=1)
+        self.depth_head = nn.Sequential(
+            nn.Conv2d(16, 1, kernel_size=1),
+            nn.Sigmoid()  # constrains depth to [0, 1]
+        )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Used in training, takes an image and returns raw logits and raw depth.
-        This is what the loss functions use as input.
-
-        Args:
-            x (torch.FloatTensor): image with shape (b, 3, h, w) and vals in [0, 1]
-
-        Returns:
-            tuple of (torch.FloatTensor, torch.FloatTensor):
-                - logits (b, num_classes, h, w)
-                - depth (b, h, w)
-        """
-        # optional: normalizes the input
         z = (x - self.input_mean[None, :, None, None]) / self.input_std[None, :, None, None]
 
-        # TODO: replace with actual forward pass
-        logits = torch.randn(x.size(0), 3, x.size(2), x.size(3))
-        raw_depth = torch.rand(x.size(0), x.size(2), x.size(3))
+        # Encoder
+        d1 = self.down1(z)   # (b, 16, h/2, w/2)
+        d2 = self.down2(d1)  # (b, 32, h/4, w/4)
+        d3 = self.down3(d2)  # (b, 64, h/8, w/8)
+
+        # Decoder with skip connections (U-Net style)
+        u1 = self.up1(d3)           # (b, 32, h/4, w/4)
+        u2 = self.up2(torch.cat([u1, d2], dim=1))  # (b, 16, h/2, w/2)
+        u3 = self.up3(torch.cat([u2, d1], dim=1))  # (b, 16, h, w)
+
+        logits = self.seg_head(u3)            # (b, num_classes, h, w)
+        raw_depth = self.depth_head(u3).squeeze(1)  # (b, h, w)
 
         return logits, raw_depth
 
     def predict(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Used for inference, takes an image and returns class labels and normalized depth.
-        This is what the metrics use as input (this is what the grader will use!).
-
-        Args:
-            x (torch.FloatTensor): image with shape (b, 3, h, w) and vals in [0, 1]
-
-        Returns:
-            tuple of (torch.LongTensor, torch.FloatTensor):
-                - pred: class labels {0, 1, 2} with shape (b, h, w)
-                - depth: normalized depth [0, 1] with shape (b, h, w)
-        """
         logits, raw_depth = self(x)
         pred = logits.argmax(dim=1)
-
-        # Optional additional post-processing for depth only if needed
         depth = raw_depth
-
         return pred, depth
 
 
