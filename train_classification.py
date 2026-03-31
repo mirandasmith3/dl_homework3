@@ -83,11 +83,10 @@ def train():
                     labels = labels.to(device)
 
                 preds = model.predict(images)
-                metric.update(preds.cpu(), labels.cpu())
+                metric.add(preds.cpu(), labels.cpu())
 
-        acc = metric.compute()
-
-        print(f"Epoch {epoch+1}/{num_epochs} | Loss: {avg_loss:.4f} | Val Acc: {acc:.4f}")
+        results = metric.compute()
+        print(f"Epoch {epoch+1}/{num_epochs} | Loss: {avg_loss:.4f} | Val Acc: {results['accuracy']:.4f}")
 
     # -----------------------
     # Save model
