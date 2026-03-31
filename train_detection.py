@@ -13,7 +13,7 @@ def train():
     # Hyperparameters
     # -----------------------
     batch_size = 32
-    lr = 1e-3
+    lr = 3e-3
     num_epochs = 40
 
     # -----------------------
@@ -42,6 +42,7 @@ def train():
     depth_criterion = nn.L1Loss()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
     # -----------------------
     # Training loop
@@ -61,7 +62,7 @@ def train():
 
             seg_loss = seg_criterion(logits, seg_labels)
             depth_loss = depth_criterion(depth_preds, depth_labels)
-            loss = seg_loss + depth_loss
+            loss = 3 * seg_loss + depth_loss
 
             loss.backward()
             optimizer.step()
@@ -91,6 +92,7 @@ def train():
                 )
 
         results = metric.compute()
+        scheduler.step()
         print(
             f"Epoch {epoch+1}/{num_epochs} | Loss: {avg_loss:.4f} | "
             f"IOU: {results['iou']:.4f} | "
