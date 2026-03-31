@@ -48,14 +48,17 @@ def train():
         total_loss = 0
 
         for batch in train_loader:
-            images = batch["image"].to(device)
-            labels = batch["label"].to(device)
+            if isinstance(batch, dict):
+                images = batch["image"].to(device)
+                labels = batch["label"].to(device)
+            else:
+                images, labels = batch
+                images = images.to(device)
+                labels = labels.to(device)
 
             optimizer.zero_grad()
-
             logits = model(images)
             loss = criterion(logits, labels)
-
             loss.backward()
             optimizer.step()
 
@@ -71,8 +74,13 @@ def train():
 
         with torch.inference_mode():
             for batch in val_loader:
-                images = batch["image"].to(device)
-                labels = batch["label"].to(device)
+                if isinstance(batch, dict):
+                    images = batch["image"].to(device)
+                    labels = batch["label"].to(device)
+                else:
+                    images, labels = batch
+                    images = images.to(device)
+                    labels = labels.to(device)
 
                 preds = model.predict(images)
                 metric.update(preds.cpu(), labels.cpu())
