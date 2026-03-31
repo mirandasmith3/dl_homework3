@@ -14,7 +14,7 @@ def train():
     # -----------------------
     batch_size = 32
     lr = 1e-3
-    num_epochs = 20
+    num_epochs = 40
 
     # -----------------------
     # Data
